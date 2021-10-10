@@ -1,0 +1,118 @@
+# Setting batch to true, triggers one build at a time.
+# if there is a push while a build in progress, it will wait,
+# until the running build finishes, and produce a build with all the changes
+# that happened during the last build.
+trigger:
+  batch: true
+  branches:
+    include:
+    - feature/*
+  paths:
+    include:
+    - '*'
+    - docs/manpages/*
+    exclude:
+    - eng/Version.Details.xml
+    - .github/*
+    - docs/*
+    - CODE-OF-CONDUCT.md
+    - CONTRIBUTING.md
+    - LICENSE.TXT
+    - PATENTS.TXT
+    - README.md
+    - SECURITY.md
+    - THIRD-PARTY-NOTICES.TXT
+
+pr:
+  branches:
+    include:
+    - feature/*
+  paths:
+    include:
+    - '*'
+    - docs/manpages/*
+    exclude:
+    - eng/Version.Details.xml
+    - .github/*
+    - docs/*
+    - CODE-OF-CONDUCT.md
+    - CONTRIBUTING.md
+    - LICENSE.TXT
+    - PATENTS.TXT
+    - README.md
+    - SECURITY.md
+    - THIRD-PARTY-NOTICES.TXT
+
+variables:
+  - template: /eng/pipelines/common/variables.yml
+  - ${{ if and(ne(variables['System.TeamProject'], 'public'), ne(variables['Build.Reason'], 'PullRequest')) }}:
+    - name: TeamName
+      value: dotnet-core
+
+stages:
+- stage: Build
+  jobs:
+
+  #
+  # Build with Release config and Debug runtimeConfiguration
+  #
+  - ${{ if ne(variables.isOfficialBuild, true) }}:
+    - template: /eng/pipelines/common/platform-matrix.yml
+      parameters:
+        jobTemplate: /eng/pipelines/common/global-build-job.yml
+        buildConfig: Debug
+        platforms:
+        - Linux_x64
+        - windows_x64
+        - OSX_x64
+        jobParameters:
+          timeoutInMinutes: 100
+          testGroup: innerloop
+          buildArgs: -s nativeaot+libs+nativeaot.packages -lc Release -rc Debug
+          extraStepsTemplate: /eng/pipelines/runtimelab/runtimelab-post-build-steps.yml
+
+  #
+  # Build with Release config and Checked runtimeConfiguration
+  #
+  - ${{ if ne(variables.isOfficialBuild, true) }}:
+    - template: /eng/pipelines/common/platform-matrix.yml
+      parameters:
+        jobTemplate: /eng/pipelines/common/global-build-job.yml
+        buildConfig: Checked
+        platforms:
+        - Linux_x64
+        - windows_x64
+        jobParameters:
+          timeoutInMinutes: 100
+          testGroup: innerloop
+          buildArgs: -s nativeaot+libs+nativeaot.packages -lc Release -rc Checked
+          extraStepsTemplate: /eng/pipelines/runtimelab/runtimelab-post-build-steps.yml
+
+  #
+  # Build with Release config and Release runtimeConfiguration (used for official builds)
+  #
+  - template: /eng/pipelines/common/platform-matrix.yml
+    parameters:
+      jobTemplate: /eng/pipelines/common/global-build-job.yml
+      buildConfig: Release
+      platforms:
+      - Linux_x64
+      - Linux_musl_x64
+      - Linux_arm
+      - Linux_arm64
+      - windows_x64
+      - windows_arm64
+      - OSX_x64
+      jobParameters:
+        timeoutInMinutes: 100
+        isOfficialBuild: ${{ variables.isOfficialBuild }}
+        testGroup: innerloop
+        buildArgs: -s nativeaot.objwriter+nativeaot+libs+nativeaot.packages -c Release
+        extraStepsTemplate: /eng/pipelines/runtimelab/runtimelab-post-build-steps.yml
+        extraStepsParameters:
+          uploadIntermediateArtifacts: ${{ variables.isOfficialBuild }}
+
+- ${{ if eq(variables.isOfficialBuild, true) }}:
+  - template: /eng/pipelines/official/stages/publish.yml
+    parameters:
+      isOfficialBuild: true

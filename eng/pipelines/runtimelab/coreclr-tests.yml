@@ -1,0 +1,39 @@
+trigger: none
+
+jobs:
+#
+# Build with Debug config and Checked runtimeConfiguration
+#
+- template: /eng/pipelines/common/platform-matrix.yml
+  parameters:
+    jobTemplate: /eng/pipelines/common/global-build-job.yml
+    buildConfig: Checked
+    platforms:
+    - windows_x64
+    jobParameters:
+      timeoutInMinutes: 720
+      testGroup: innerloop
+      buildArgs: -s nativeaot+libs+nativeaot.packages -lc release -rc checked
+      extraStepsTemplate: /eng/pipelines/runtimelab/runtimelab-post-build-steps.yml
+      extraStepsParameters:
+        smokeTestsOnly: false
+        runSingleFileTests: false
+
+
+#
+# Build with Release config and Release runtimeConfiguration
+#
+- template: /eng/pipelines/common/platform-matrix.yml
+  parameters:
+    jobTemplate: /eng/pipelines/common/global-build-job.yml
+    buildConfig: Release
+    platforms:
+    - windows_x64
+    jobParameters:
+      timeoutInMinutes: 720
+      testGroup: innerloop
+      buildArgs: -s nativeaot+libs+nativeaot.packages -c $(_BuildConfig) /p:ArchiveTests=true
+      extraStepsTemplate: /eng/pipelines/runtimelab/runtimelab-post-build-steps.yml
+      extraStepsParameters:
+        smokeTestsOnly: false
+        runSingleFileTests: false
